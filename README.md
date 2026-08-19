@@ -16,3 +16,7 @@ point to those installations.
 ```
 
 The debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
+
+## License
+
+Tapziq Translate is available under the [Apache License 2.0](LICENSE).
