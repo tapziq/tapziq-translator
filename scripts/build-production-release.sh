@@ -3,6 +3,16 @@ set -euo pipefail
 
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 
+without_signing() {
+  env \
+    -u TAPZIQ_TRANSLATOR_RELEASE_STORE_BASE64 \
+    -u TAPZIQ_TRANSLATOR_RELEASE_STORE_FILE \
+    -u TAPZIQ_TRANSLATOR_RELEASE_STORE_PASSWORD \
+    -u TAPZIQ_TRANSLATOR_RELEASE_KEY_ALIAS \
+    -u TAPZIQ_TRANSLATOR_RELEASE_KEY_PASSWORD \
+    "$@"
+}
+
 if [[ $# -ne 2 ]]; then
   printf 'Usage: %s VERSION VERSION_CODE\n' "$0" >&2
   exit 2
@@ -10,6 +20,14 @@ fi
 
 release_version="$1"
 release_version_code="$2"
+expected_version_code="$(
+  "$repo_root/scripts/semantic-version-code.sh" "$release_version"
+)"
+if [[ "$release_version_code" != "$expected_version_code" ]]; then
+  printf 'VERSION_CODE must be %s for version %s.\n' \
+    "$expected_version_code" "$release_version" >&2
+  exit 1
+fi
 if [[ ! "$release_version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
   printf 'VERSION must be a stable semantic version such as 1.2.3.\n' >&2
   exit 1
@@ -55,23 +73,25 @@ for android_tool in apksigner aapt2 zipalign; do
 done
 
 cd "$repo_root"
-if [[ -n "$(git status --porcelain --untracked-files=normal)" ]]; then
+if [[ -n "$(without_signing git status --porcelain --untracked-files=normal)" ]]; then
   printf 'Production releases must be built from a clean Git worktree.\n' >&2
   exit 1
 fi
-source_commit="$(git rev-parse --verify HEAD)"
+source_commit="$(without_signing git rev-parse --verify HEAD)"
 if [[ ! "$source_commit" =~ ^[0-9a-f]{40}$ ]]; then
   printf 'Could not resolve a full lowercase source commit.\n' >&2
   exit 1
 fi
 
 env \
+  -u GH_TOKEN \
+  -u GITHUB_TOKEN \
   -u TAPZIQ_TRANSLATOR_RELEASE_STORE_FILE \
   -u TAPZIQ_TRANSLATOR_RELEASE_STORE_PASSWORD \
   -u TAPZIQ_TRANSLATOR_RELEASE_KEY_ALIAS \
   -u TAPZIQ_TRANSLATOR_RELEASE_KEY_PASSWORD \
   ./gradlew \
-  --offline \
+  --dependency-verification=strict \
   --no-daemon \
   --no-configuration-cache \
   "-PtapziqTranslatorVersionName=$release_version" \
@@ -82,7 +102,11 @@ env \
   :app:testReleaseUnitTest \
   :app:lintRelease
 
-./gradlew \
+env \
+  -u GH_TOKEN \
+  -u GITHUB_TOKEN \
+  ./gradlew \
+  --dependency-verification=strict \
   --offline \
   --no-daemon \
   --no-configuration-cache \
@@ -91,11 +115,11 @@ env \
   "-PtapziqTranslatorSourceCommit=$source_commit" \
   :app:assembleRelease
 
-if [[ "$(git rev-parse --verify HEAD)" != "$source_commit" ]]; then
+if [[ "$(without_signing git rev-parse --verify HEAD)" != "$source_commit" ]]; then
   printf 'Git HEAD changed during the production build; refusing the artifact.\n' >&2
   exit 1
 fi
-if [[ -n "$(git status --porcelain --untracked-files=normal)" ]]; then
+if [[ -n "$(without_signing git status --porcelain --untracked-files=normal)" ]]; then
   printf 'Production build changed the Git worktree; refusing the artifact.\n' >&2
   exit 1
 fi

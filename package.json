@@ -1,0 +1,27 @@
+{
+  "name": "tapziq-translator-release-automation",
+  "private": true,
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tapziq/tapziq-translator.git"
+  },
+  "engines": {
+    "node": ">=24.15.0 <25"
+  },
+  "scripts": {
+    "audit:release": "node scripts/audit-release-tooling.cjs",
+    "check:commits": "node scripts/verify-conventional-commits.cjs",
+    "release": "semantic-release",
+    "test": "npm run test:release",
+    "test:release": "node --test scripts/*.test.cjs"
+  },
+  "devDependencies": {
+    "@semantic-release/commit-analyzer": "13.0.1",
+    "@semantic-release/github": "12.0.9",
+    "@semantic-release/release-notes-generator": "14.1.1",
+    "conventional-changelog-conventionalcommits": "9.3.1",
+    "semver": "7.8.5",
+    "semantic-release": "25.0.9"
+  }
+}

@@ -37,14 +37,23 @@ val hasCompleteReleaseSigning = releaseSigningVariables.values.all {
 }
 val gitHead = providers.exec {
     workingDir(rootDir)
+    setEnvironment(System.getenv().filterKeys {
+        it !in releaseSigningVariables.keys
+    })
     commandLine("git", "rev-parse", "--verify", "HEAD")
 }.standardOutput.asText
 val gitWorktreeStatus = providers.exec {
     workingDir(rootDir)
+    setEnvironment(System.getenv().filterKeys {
+        it !in releaseSigningVariables.keys
+    })
     commandLine("git", "status", "--porcelain", "--untracked-files=normal")
 }.standardOutput.asText
 val gitIgnoredSourceFiles = providers.exec {
     workingDir(rootDir)
+    setEnvironment(System.getenv().filterKeys {
+        it !in releaseSigningVariables.keys
+    })
     commandLine(
         "git",
         "ls-files",

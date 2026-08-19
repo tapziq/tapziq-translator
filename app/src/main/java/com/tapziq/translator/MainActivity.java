@@ -91,6 +91,7 @@ public final class MainActivity extends Activity {
         content.addView(inputLabel, fullWidth(20));
 
         input = new EditText(this);
+        input.setId(R.id.translation_input);
         input.setGravity(Gravity.TOP | Gravity.START);
         input.setMinLines(4);
         input.setTextSize(18);
@@ -101,6 +102,7 @@ public final class MainActivity extends Activity {
         content.addView(input, fixedHeight(130, 8));
 
         Button translateButton = new Button(this);
+        translateButton.setId(R.id.translate_button);
         translateButton.setText(R.string.translate);
         translateButton.setTextSize(17);
         translateButton.setAllCaps(false);
@@ -112,6 +114,7 @@ public final class MainActivity extends Activity {
         content.addView(outputLabel, fullWidth(20));
 
         output = text("", 18, TEXT_COLOR);
+        output.setId(R.id.translation_output);
         output.setGravity(Gravity.TOP | Gravity.START);
         output.setTextIsSelectable(true);
         output.setPadding(dp(14), dp(12), dp(14), dp(12));
