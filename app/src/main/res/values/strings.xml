@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Tapziq Translate</string>
+    <string name="subtitle">Translate between English and Spanish.</string>
+    <string name="english">English</string>
+    <string name="spanish">Spanish</string>
+    <string name="english_to_spanish">English  ⇄  Spanish</string>
+    <string name="spanish_to_english">Spanish  ⇄  English</string>
+    <string name="enter_english">Enter English text</string>
+    <string name="enter_spanish">Escribe texto en español</string>
+    <string name="enter_text_error">Enter text to translate</string>
+    <string name="translate">Translate</string>
+    <string name="on_device">Translations stay on this device.</string>
+</resources>
