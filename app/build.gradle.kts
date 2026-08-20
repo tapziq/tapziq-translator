@@ -2,8 +2,8 @@ plugins {
     id("com.android.application")
 }
 
-val tapziqTranslatorSourceVersionName = "0.2.0"
-val tapziqTranslatorSourceVersionCode = 2000
+val tapziqTranslatorSourceVersionName = "0.3.0"
+val tapziqTranslatorSourceVersionCode = 3000
 val tapziqTranslatorVersionNameProperty = providers.gradleProperty(
     "tapziqTranslatorVersionName"
 )
