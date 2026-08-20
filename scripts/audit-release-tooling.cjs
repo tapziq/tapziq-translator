@@ -1,10 +1,26 @@
 const assert = require("node:assert/strict");
 const { spawnSync } = require("node:child_process");
+const { readFileSync } = require("node:fs");
 const path = require("node:path");
 
 const repositoryRoot = path.resolve(__dirname, "..");
 const releaseConfig = require(path.join(repositoryRoot, "release.config.cjs"));
 const configuredPlugins = releaseConfig.plugins.map(([plugin]) => plugin);
+
+const wrapperProperties = readFileSync(
+  path.join(repositoryRoot, "gradle/wrapper/gradle-wrapper.properties"),
+  "utf8",
+);
+assert.match(
+  wrapperProperties,
+  /^distributionUrl=https\\:\/\/services\.gradle\.org\/distributions\/gradle-8\.13-bin\.zip$/m,
+  "The Gradle wrapper distribution must remain pinned to the audited URL.",
+);
+assert.match(
+  wrapperProperties,
+  /^distributionSha256Sum=20f1b1176237254a6fc204d8434196fa11a4cfb387567519c61556e8710aed78$/m,
+  "The Gradle 8.13 distribution must remain pinned to its official SHA-256.",
+);
 
 assert(
   !configuredPlugins.includes("@semantic-release/npm"),
