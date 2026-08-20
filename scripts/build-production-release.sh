@@ -100,7 +100,8 @@ env \
   :app:checkProductionSigningTaskCoverage \
   :app:testDebugUnitTest \
   :app:testReleaseUnitTest \
-  :app:lintRelease
+  :app:lintRelease \
+  :smoke-probe:assembleDebug
 
 env \
   -u GH_TOKEN \

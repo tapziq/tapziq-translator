@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Process Text smoke probe</string>
+    <string name="activity_not_found">ACTIVITY_NOT_FOUND</string>
+    <string name="wrong_result_code">RESULT_CODE: %1$d</string>
+    <string name="successful_result">RESULT_OK: %1$s</string>
+    <string name="waiting_for_result">WAITING</string>
+</resources>

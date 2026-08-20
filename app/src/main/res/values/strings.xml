@@ -10,5 +10,7 @@
     <string name="enter_spanish">Escribe texto en español</string>
     <string name="enter_text_error">Enter text to translate</string>
     <string name="translate">Translate</string>
+    <string name="translate_and_return">Translate and return</string>
+    <string name="process_text_label">Translate with Tapziq</string>
     <string name="on_device">Translations stay on this device.</string>
 </resources>

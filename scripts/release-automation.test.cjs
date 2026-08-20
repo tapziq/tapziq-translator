@@ -67,6 +67,10 @@ const productionBuildScript = readFileSync(
   path.join(repositoryRoot, "scripts", "build-production-release.sh"),
   "utf8",
 );
+const sourceBuildScript = readFileSync(
+  path.join(repositoryRoot, "app", "build.gradle.kts"),
+  "utf8",
+);
 const releaseAnalyzerScript = readFileSync(
   path.join(repositoryRoot, "scripts", "analyze-release.cjs"),
   "utf8",
@@ -383,6 +387,11 @@ test("the signing process uses pinned dependencies offline", () => {
     productionBuildScript,
     /-u TAPZIQ_TRANSLATOR_RELEASE_KEY_PASSWORD[\s\S]*?\.\/gradlew[\s\S]*?:app:lintRelease/,
   );
+  assert.match(productionBuildScript, /:smoke-probe:assembleDebug/);
+  assert.match(
+    sourceBuildScript,
+    /"--",\s*"app\/src",\s*"smoke-probe\/src"\s*\)/,
+  );
   assert.match(
     productionBuildScript,
     /env \\\n  -u GH_TOKEN \\\n  -u GITHUB_TOKEN \\\n  \.\/gradlew \\\n  --dependency-verification=strict \\\n  --offline[\s\S]*?:app:assembleRelease/,
@@ -580,7 +589,16 @@ test("APK verification accepts portable SHA-256 tools and requires unzip", () =>
   assert.match(apkVerifierScript, /apk_sha256="\$\(shasum -a 256/);
 });
 
-test("production smoke test installs, launches, and translates", () => {
+test("APK verification requires the Process Text manifest contract", () => {
+  assert.match(apkVerifierScript, /android\.intent\.action\.PROCESS_TEXT/);
+  assert.match(apkVerifierScript, /android\.intent\.category\.DEFAULT/);
+  assert.match(apkVerifierScript, /text\/plain/);
+  assert.match(apkVerifierScript, /missing Process Text manifest value/);
+  assert.match(apkVerifierScript, /expected_minor >= 3/);
+  assert.match(apkVerifierScript, /if \[\[ "\$process_text_expected" == true \]\]; then/);
+});
+
+test("production smoke test installs, launches, translates, and exercises Process Text", () => {
   assert.match(emulatorSmokeScript, /adb uninstall "\$package_name"/);
   assert.match(emulatorSmokeScript, /adb install --no-streaming/);
   assert.match(emulatorSmokeScript, /adb shell am start -W -n "\$activity_component"/);
@@ -593,6 +611,16 @@ test("production smoke test installs, launches, and translates", () => {
   assert.match(emulatorSmokeScript, /android:id\/aerr_wait/);
   assert.match(emulatorSmokeScript, /adb shell input text Hello/);
   assert.match(emulatorSmokeScript, /did not translate Hello to Hola/);
+  assert.match(emulatorSmokeScript, /cmd package resolve-activity --brief/);
+  assert.match(emulatorSmokeScript, /android\.intent\.action\.PROCESS_TEXT/);
+  assert.match(emulatorSmokeScript, /android\.intent\.extra\.PROCESS_TEXT_READONLY/);
+  assert.match(emulatorSmokeScript, /Translate and return/);
+  assert.match(emulatorSmokeScript, /read-only Hello ->/);
+  assert.match(emulatorSmokeScript, /smoke-probe-debug\.apk/);
+  assert.match(emulatorSmokeScript, /RESULT_OK: Hola/);
+  assert.match(emulatorSmokeScript, /did not return RESULT_OK with Hola/);
+  assert.match(emulatorSmokeScript, /expected_minor >= 3/);
+  assert.match(emulatorSmokeScript, /if \[\[ "\$process_text_expected" == true \]\]; then/);
   assert.doesNotMatch(emulatorSmokeScript, /ime enable|ime set|input_method/);
 });
 

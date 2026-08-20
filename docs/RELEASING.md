@@ -46,7 +46,10 @@ Before any tag or public release is created, the Publish job:
    package/version/SDK metadata, no permissions or native libraries,
    non-debuggable state, embedded source SHA, and 16 KiB alignment.
 5. Installs the exact signed APK on an API 36 `aosp_atd` emulator, launches
-   `MainActivity`, enters `Hello`, taps Translate, and requires `Hola`.
+   `MainActivity`, enters `Hello`, taps Translate, and requires `Hola`. A
+   test-only caller also requires read-only Process Text to display `Hola` and
+   mutable Process Text to return `RESULT_OK` with an exact `Hola` payload for
+   releases `v0.3.0` and later.
 6. Freezes the APK and legal assets and writes `SHA256SUMS`.
 7. Rechecks remote `main` still names the candidate's parent, then pushes the
    already-tested version commit and creates a draft with the four assets.

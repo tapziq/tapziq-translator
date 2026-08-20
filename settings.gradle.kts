@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "TapziqTranslator"
 include(":app")
+include(":smoke-probe")

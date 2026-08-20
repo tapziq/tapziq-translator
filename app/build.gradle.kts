@@ -61,7 +61,8 @@ val gitIgnoredSourceFiles = providers.exec {
         "--ignored",
         "--exclude-standard",
         "--",
-        "app/src"
+        "app/src",
+        "smoke-probe/src"
     )
 }.standardOutput.asText
 
@@ -190,7 +191,7 @@ val verifyReleaseSigning by tasks.registering {
         }
         if (gitIgnoredSourceFiles.get().isNotBlank()) {
             throw GradleException(
-                "Production releases refuse ignored files under app/src."
+                "Production releases refuse ignored files under app/src or smoke-probe/src."
             )
         }
     }
