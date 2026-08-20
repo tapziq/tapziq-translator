@@ -119,22 +119,19 @@ const release = {
   body: state.body,
   draft: !state.published,
   prerelease: false,
-  immutable: state.published,
+  immutable: state.published && state.immutableEnabled,
   assets: state.assets,
   html_url: "https://github.com/tapziq/tapziq-translator/releases/tag/" + state.tag,
 };
 if (endpoint === "repositories/1339751947/releases?per_page=100") {
   process.stdout.write(JSON.stringify([release]));
-} else if (endpoint === "repositories/1339751947/immutable-releases") {
-  process.stdout.write(JSON.stringify({ enabled: state.immutableEnabled }));
 } else if (endpoint === "repositories/1339751947/releases/42" && method === "GET") {
   process.stdout.write(JSON.stringify(release));
 } else if (endpoint === "repositories/1339751947/releases/42" && method === "PATCH") {
-  if (!state.immutableEnabled) process.exit(71);
   state.published = true;
   writeFileSync(statePath, JSON.stringify(state));
   release.draft = false;
-  release.immutable = true;
+  release.immutable = state.immutableEnabled;
   process.stdout.write(JSON.stringify(release));
 } else {
   process.stderr.write("unexpected endpoint: " + endpoint + "\\n");
@@ -175,7 +172,7 @@ publish({}, context).then(() => process.stdout.write("published\\n")).catch((err
   return { environment, root, runner, statePath, verifyRecord };
 }
 
-test("immutable publication fails closed and retains the completed draft", (t) => {
+test("a non-immutable publication response hard-stops before verification", (t) => {
   const fixture = createFixture(t);
   const state = JSON.parse(readFileSync(fixture.statePath, "utf8"));
   state.immutableEnabled = false;
@@ -186,8 +183,8 @@ test("immutable publication fails closed and retains the completed draft", (t) =
     env: fixture.environment,
   });
   assert.equal(result.status, 1);
-  assert.match(result.stderr, /immutable releases were disabled/i);
-  assert.equal(JSON.parse(readFileSync(fixture.statePath, "utf8")).published, false);
+  assert.match(result.stderr, /did not publish.*immutable release/i);
+  assert.equal(JSON.parse(readFileSync(fixture.statePath, "utf8")).published, true);
   assert.equal(existsSync(fixture.verifyRecord), false);
 });
 

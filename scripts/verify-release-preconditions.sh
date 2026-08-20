@@ -14,22 +14,9 @@ fail() {
   fail "GITHUB_REPOSITORY must identify the trusted Tapziq Translate repository."
 [[ "${GITHUB_SHA:-}" =~ ^[0-9a-f]{40}$ ]] || \
   fail "GITHUB_SHA must identify the release source commit."
-[[ -n "${GH_TOKEN:-}" ]] || fail "GH_TOKEN is required for immutable-release preflight."
-command -v gh >/dev/null 2>&1 || fail "GitHub CLI is required for release preflight."
-
-immutable_enabled="$(
-  env \
-    -u TAPZIQ_TRANSLATOR_RELEASE_STORE_BASE64 \
-    -u TAPZIQ_TRANSLATOR_RELEASE_STORE_PASSWORD \
-    -u TAPZIQ_TRANSLATOR_RELEASE_KEY_ALIAS \
-    -u TAPZIQ_TRANSLATOR_RELEASE_KEY_PASSWORD \
-    gh api \
-    -H 'X-GitHub-Api-Version: 2026-03-10' \
-    repositories/1339751947/immutable-releases \
-    --jq '.enabled'
-)" || fail "Could not verify GitHub immutable-release enforcement."
-[[ "$immutable_enabled" == true ]] || \
-  fail "GitHub immutable releases must be enabled before production publication."
+[[ "${TAPZIQ_TRANSLATOR_IMMUTABLE_RELEASES_OWNER_ENFORCED:-}" \
+    == tapziq:1339751947 ]] || \
+  fail "The production environment is not marked for organization-enforced immutable releases."
 
 for required_variable in \
   TAPZIQ_TRANSLATOR_RELEASE_STORE_BASE64 \
@@ -41,5 +28,5 @@ do
     fail "The production environment is missing $required_variable."
 done
 
-printf 'Verified production release controls and immutable publication for repository %s.\n' \
+printf 'Verified production release controls and owner-enforced immutable publication for repository %s.\n' \
   "$GITHUB_REPOSITORY_ID"

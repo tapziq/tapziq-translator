@@ -691,15 +691,6 @@ function matchingDraftMetadata(release, tag, version, expectedCommit, expectedBo
     && release.body === expectedBody;
 }
 
-function verifyImmutableReleasePolicy() {
-  const policy = ghApi(
-    `repositories/${TRUSTED_REPOSITORY_ID}/immutable-releases`,
-  );
-  if (!policy || policy.enabled !== true) {
-    fail("GitHub immutable releases were disabled before publication.");
-  }
-}
-
 async function analyzeAndGenerate(previousTag, currentTag, currentCommit) {
   const result = spawnSync(process.execPath, [
     path.join(repositoryRoot, "scripts", "analyze-release.cjs"),
@@ -1106,7 +1097,6 @@ async function reconcileTaggedRelease({
   if (prePublish) {
     await prePublish();
   }
-  verifyImmutableReleasePolicy();
   const published = ghApi(`repositories/${TRUSTED_REPOSITORY_ID}/releases/${draft.id}`, [
     "--method", "PATCH",
     "-F", "draft=false",

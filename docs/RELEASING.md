@@ -50,8 +50,8 @@ Before any tag or public release is created, the Publish job:
 6. Freezes the APK and legal assets and writes `SHA256SUMS`.
 7. Rechecks remote `main` still names the candidate's parent, then pushes the
    already-tested version commit and creates a draft with the four assets.
-8. Rechecks GitHub's immutable-release policy immediately before changing the
-   completed draft to public and requires the result to be immutable.
+8. Publishes under the tapziq organization's owner-enforced immutable-release
+   policy and requires GitHub's public transition response to be immutable.
 
 A failed build, signature check, UI smoke, or remote race cannot consume a
 version. The separate Audit job is read-only: it downloads the public assets,
@@ -115,6 +115,19 @@ TAPZIQ_TRANSLATOR_RELEASE_KEY_ALIAS
 TAPZIQ_TRANSLATOR_RELEASE_KEY_PASSWORD
 ```
 
+It also stores this non-secret environment variable:
+
+```text
+TAPZIQ_TRANSLATOR_IMMUTABLE_RELEASES_OWNER_ENFORCED=tapziq:1339751947
+```
+
+Set that marker only after the tapziq organization enforces immutable releases
+for selected repository ID `1339751947`. Before activating the workflow, an
+organization owner must independently verify the repository API reports both
+`enabled: true` and `enforced_by_owner: true`. The Actions `GITHUB_TOKEN` cannot
+read that Administration-only endpoint, so owner enforcement is the external
+publication invariant rather than a check performed by third-party release code.
+
 The PKCS12 store is decoded only under the runner's temporary directory with
 mode `0600`. Emulator, Git, GitHub CLI, release analysis, and third-party npm
 processes do not inherit signing values. The Gradle signing invocation is
@@ -122,7 +135,12 @@ offline and uses strict SHA-256 dependency verification from
 `gradle/verification-metadata.xml`. Pull requests receive no production secrets
 and only read access. Only the protected Publish job receives `contents: write`.
 
-Immutable releases must remain enabled. The setting applies to releases
+Organization-enforced immutable releases must remain enabled. The publisher
+refetches and digest-checks the completed draft immediately before its one
+public PATCH, requires the response to report `immutable: true`, and stops
+without verification if it does not. Recovery rejects any automated latest
+release that is not immutable, permanently blocking later releases instead of
+deleting, retagging, or retrying it. The setting applies only to releases
 published after activation, so the earlier `v0.1.0` baseline remains the sole
 grandfathered mutable release. Repository rules must allow the Publish job's
 token to push its verified one-file release commit to `main`.

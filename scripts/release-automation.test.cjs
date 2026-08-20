@@ -79,8 +79,13 @@ const immutablePublisherScript = readFileSync(
   path.join(repositoryRoot, "scripts", "publish-immutable-release.cjs"),
   "utf8",
 );
+const releasePreflightPath = path.join(
+  repositoryRoot,
+  "scripts",
+  "verify-release-preconditions.sh",
+);
 const releasePreflightScript = readFileSync(
-  path.join(repositoryRoot, "scripts", "verify-release-preconditions.sh"),
+  releasePreflightPath,
   "utf8",
 );
 const currentReleaseVerifierPath = path.join(
@@ -350,10 +355,12 @@ test("release configuration packages before publishing exact assets", () => {
     pluginEntries.get("./scripts/publish-immutable-release.cjs"),
     {},
   );
+  assert.doesNotMatch(immutablePublisherScript, /immutable-releases/);
   assert.match(
     immutablePublisherScript,
-    /immutable-releases[\s\S]*enabled !== true[\s\S]*"PATCH"[\s\S]*draft=false/,
+    /const refreshedDraft[\s\S]*"PATCH"[\s\S]*draft=false[\s\S]*published\.immutable !== true/,
   );
+  assert.doesNotMatch(releaseReconcilerScript, /immutable-releases/);
 });
 
 test("Conventional Commits map to intended SemVer levels", async () => {
@@ -649,15 +656,22 @@ test("workflow keeps secrets out of PR verification and uses safe token scopes",
     /Configure release Git authentication\n        run: gh auth setup-git\n        env:\n          GH_TOKEN: \$\{\{ secrets\.GITHUB_TOKEN \}\}/,
   );
   const preflightStep = workflow.match(
-    /      - name: Verify production release controls\n[\s\S]*?(?=\n      - name: Set up JDK 21)/,
+    /      - name: Verify production release controls\n[\s\S]*?(?=\n      - name: Configure release Git authentication)/,
   );
   assert(preflightStep);
+  assert.doesNotMatch(
+    preflightStep[0],
+    /GH_TOKEN|GITHUB_TOKEN/,
+  );
   assert.match(
     preflightStep[0],
-    /GH_TOKEN: \$\{\{ secrets\.GITHUB_TOKEN \}\}/,
+    /TAPZIQ_TRANSLATOR_IMMUTABLE_RELEASES_OWNER_ENFORCED: \$\{\{ vars\.TAPZIQ_TRANSLATOR_IMMUTABLE_RELEASES_OWNER_ENFORCED \}\}/,
   );
-  assert.match(releasePreflightScript, /repositories\/1339751947\/immutable-releases/);
-  assert.match(releasePreflightScript, /immutable_enabled.*true/s);
+  assert.match(
+    releasePreflightScript,
+    /TAPZIQ_TRANSLATOR_IMMUTABLE_RELEASES_OWNER_ENFORCED[\s\S]*tapziq:1339751947/,
+  );
+  assert.doesNotMatch(releasePreflightScript, /gh api|immutable-releases/);
 
   const publishStep = workflow.match(
     /      - name: Reconcile, build, smoke-test, and publish\n[\s\S]*?(?=\n      - name: Record release source)/,
@@ -706,4 +720,38 @@ test("workflow keeps secrets out of PR verification and uses safe token scopes",
       actionReference,
     );
   }
+});
+
+test("production preflight requires the audited owner-enforcement marker", () => {
+  const environment = {
+    ...process.env,
+    GITHUB_REF: "refs/heads/main",
+    GITHUB_REPOSITORY: "tapziq/tapziq-translator",
+    GITHUB_REPOSITORY_ID: "1339751947",
+    GITHUB_SHA: "a".repeat(40),
+    TAPZIQ_TRANSLATOR_IMMUTABLE_RELEASES_OWNER_ENFORCED: "tapziq:1339751947",
+    TAPZIQ_TRANSLATOR_RELEASE_KEY_ALIAS: "fixture-alias",
+    TAPZIQ_TRANSLATOR_RELEASE_KEY_PASSWORD: "fixture-key-password",
+    TAPZIQ_TRANSLATOR_RELEASE_STORE_BASE64: "fixture-store",
+    TAPZIQ_TRANSLATOR_RELEASE_STORE_PASSWORD: "fixture-store-password",
+  };
+  delete environment.GH_TOKEN;
+  delete environment.GITHUB_TOKEN;
+
+  const accepted = spawnSync(releasePreflightPath, [], {
+    encoding: "utf8",
+    env: environment,
+  });
+  assert.equal(accepted.status, 0, accepted.stderr);
+  assert.match(accepted.stdout, /owner-enforced immutable publication/);
+
+  const rejected = spawnSync(releasePreflightPath, [], {
+    encoding: "utf8",
+    env: {
+      ...environment,
+      TAPZIQ_TRANSLATOR_IMMUTABLE_RELEASES_OWNER_ENFORCED: "",
+    },
+  });
+  assert.equal(rejected.status, 1);
+  assert.match(rejected.stderr, /not marked for organization-enforced/);
 });

@@ -201,15 +201,10 @@ async function publish(pluginConfig, context) {
     fail(`The completed GitHub draft changed before ${tag} publication.`);
   }
 
-  // Nothing may intervene between this final policy read and the public
-  // transition. If policy changed during build or draft upload, the exact draft
-  // remains recoverable and no mutable release is intentionally published.
-  const immutablePolicy = ghApi(
-    `repositories/${TRUSTED_REPOSITORY_ID}/immutable-releases`,
-  );
-  if (immutablePolicy?.enabled !== true) {
-    fail("GitHub immutable releases were disabled before publication.");
-  }
+  // The tapziq organization enforces immutability for this repository. Actions'
+  // GITHUB_TOKEN cannot read that Administration-only policy endpoint, so the
+  // irreversible transition is guarded by the external owner policy and by
+  // requiring GitHub's PATCH response itself to report an immutable release.
   const published = ghApi(
     `repositories/${TRUSTED_REPOSITORY_ID}/releases/${draft.id}`,
     ["--method", "PATCH", "-F", "draft=false", "-f", "make_latest=true"],

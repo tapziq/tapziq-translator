@@ -313,7 +313,7 @@ function releaseJson(state, draft = true) {
     body: state.body,
     draft,
     prerelease: false,
-    immutable: !draft,
+    immutable: !draft && state.immutable === true,
     assets: state.assets,
   };
 }
@@ -322,11 +322,6 @@ const method = methodIndex === -1 ? "GET" : args[methodIndex + 1];
 let state = loadState();
 if (endpoint === "repositories/${trustedRepositoryId}") {
   process.stdout.write(JSON.stringify({id:${trustedRepositoryId},archived:false,disabled:false,default_branch:"main",full_name:"${trustedRepository}"}));
-} else if (endpoint === "repositories/${trustedRepositoryId}/immutable-releases") {
-  process.stdout.write(JSON.stringify({
-    enabled: process.env.TAPZIQ_TRANSLATOR_TEST_IMMUTABLE_ENABLED !== "false",
-    enforced_by_owner: false,
-  }));
 } else if (endpoint === "repositories/${trustedRepositoryId}/releases/latest") {
   process.stdout.write(JSON.stringify(state && state.published
     ? releaseJson(state, false)
@@ -408,6 +403,7 @@ if (endpoint === "repositories/${trustedRepositoryId}") {
 } else if (endpoint === "repositories/${trustedRepositoryId}/releases/42" && method === "PATCH") {
   if (!state || state.assets.length !== 4) process.exit(76);
   state.published = true;
+  state.immutable = process.env.TAPZIQ_TRANSLATOR_TEST_IMMUTABLE_ENABLED !== "false";
   saveState(state);
   process.stdout.write(JSON.stringify(releaseJson(state, false)));
 } else {
@@ -1141,7 +1137,7 @@ test("an exact orphan tag publishes without a historical target commitish", () =
   }
 });
 
-test("an immutability policy change retains the exact draft", () => {
+test("a non-immutable recovery response hard-stops every later release", () => {
   const fixture = createFixture({
     fullReconcile: true,
     generatedReleaseCommit: true,
@@ -1156,13 +1152,23 @@ test("an immutability policy change retains the exact draft", () => {
     assert.equal(result.status, 1);
     assert.match(
       result.stderr,
-      /immutable releases were disabled before publication/i,
+      /did not publish v0\.2\.0 as an immutable release/i,
     );
     const state = JSON.parse(
       readFileSync(path.join(fixture.root, "gh-state.json"), "utf8"),
     );
-    assert.equal(state.published, false);
+    assert.equal(state.published, true);
+    assert.equal(state.immutable, false);
     assert.equal(state.assets.length, 4);
+    assert.equal(existsSync(path.join(fixture.root, "verify-record")), false);
+
+    git(fixture.work, "checkout", "--detach", fixture.head);
+    const rerun = runHelper(fixture, {
+      TAPZIQ_TRANSLATOR_TEST_IMMUTABLE_ENABLED: "false",
+      TAPZIQ_TRANSLATOR_TEST_RECONCILE: "1",
+    });
+    assert.equal(rerun.status, 1);
+    assert.match(rerun.stderr, /latest automated Tapziq release is not immutable/i);
     assert.equal(existsSync(path.join(fixture.root, "verify-record")), false);
   } finally {
     rmSync(fixture.root, { recursive: true, force: true });
