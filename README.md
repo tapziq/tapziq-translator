@@ -6,6 +6,15 @@ Java. Its translation vocabulary ships directly inside the app.
 It requests no permissions and uses no translation API, model, network connection, or
 runtime library.
 
+## Android Process Text
+
+Tapziq Translate accepts Android `text/plain` Process Text requests. The selected text
+is prefilled so the user can choose English-to-Spanish or Spanish-to-English and start
+translation with an explicit tap. For an editable request, **Translate and return**
+returns the translated text to the calling app. For a read-only request, the result is
+shown only inside Tapziq Translate. A request that omits Android's read-only flag is
+treated as read-only and cannot return a mutation.
+
 ## Build
 
 Install JDK 21 and Android SDK 36, then make sure `JAVA_HOME` and `ANDROID_HOME`

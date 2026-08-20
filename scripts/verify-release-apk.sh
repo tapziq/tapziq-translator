@@ -27,6 +27,12 @@ if [[ ! "$expected_version_name" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][
   printf 'Expected version must be a stable semantic version.\n' >&2
   exit 1
 fi
+expected_major="${BASH_REMATCH[1]}"
+expected_minor="${BASH_REMATCH[2]}"
+process_text_expected=false
+if (( expected_major > 0 || expected_minor >= 3 )); then
+  process_text_expected=true
+fi
 if [[ ! "$expected_version_code" =~ ^[1-9][0-9]*$ ]]; then
   printf 'Expected version code must be a positive integer.\n' >&2
   exit 1
@@ -114,6 +120,19 @@ if grep -Fq 'E: profileable' <<< "$manifest_tree" \
     || grep -Eq 'android:profileableByShell.*=(true|0xffffffff)' <<< "$manifest_tree"; then
   printf 'Release APK is profileable by the shell.\n' >&2
   exit 1
+fi
+if [[ "$process_text_expected" == true ]]; then
+  for process_text_manifest_value in \
+    android.intent.action.PROCESS_TEXT \
+    android.intent.category.DEFAULT \
+    text/plain
+  do
+    if ! grep -Fq "$process_text_manifest_value" <<< "$manifest_tree"; then
+      printf 'Release APK is missing Process Text manifest value: %s\n' \
+        "$process_text_manifest_value" >&2
+      exit 1
+    fi
+  done
 fi
 
 permission_report="$($aapt2 dump permissions "$apk_path")"

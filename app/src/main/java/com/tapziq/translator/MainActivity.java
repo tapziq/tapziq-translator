@@ -1,6 +1,7 @@
 package com.tapziq.translator;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Insets;
 import android.graphics.Typeface;
@@ -26,6 +27,7 @@ public final class MainActivity extends Activity {
     private static final String STATE_OUTPUT = "output";
 
     private final TinyTranslator translator = new TinyTranslator();
+    private ProcessTextRequest processTextRequest = ProcessTextRequest.launcher();
     private TinyTranslator.Direction direction = TinyTranslator.Direction.ENGLISH_TO_SPANISH;
     private EditText input;
     private TextView inputLabel;
@@ -36,6 +38,10 @@ public final class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        processTextRequest = readProcessTextRequest(getIntent());
+        if (processTextRequest.isProcessText()) {
+            setResult(RESULT_CANCELED);
+        }
         setContentView(buildContent());
         configureSystemBars();
         if (savedInstanceState != null) {
@@ -45,6 +51,9 @@ public final class MainActivity extends Activity {
             input.setText(savedInstanceState.getString(STATE_INPUT, ""));
             output.setText(savedInstanceState.getString(STATE_OUTPUT, ""));
             updateDirectionLabels();
+        } else if (processTextRequest.isProcessText()) {
+            input.setText(processTextRequest.initialText());
+            input.setSelection(input.length());
         }
     }
 
@@ -103,7 +112,9 @@ public final class MainActivity extends Activity {
 
         Button translateButton = new Button(this);
         translateButton.setId(R.id.translate_button);
-        translateButton.setText(R.string.translate);
+        translateButton.setText(processTextRequest.canReturnTranslation()
+                ? R.string.translate_and_return
+                : R.string.translate);
         translateButton.setTextSize(17);
         translateButton.setAllCaps(false);
         translateButton.setOnClickListener(view -> translate());
@@ -137,7 +148,33 @@ public final class MainActivity extends Activity {
             return;
         }
         input.setError(null);
-        output.setText(translator.translate(source, direction));
+        String translated = translator.translate(source, direction);
+        if (processTextRequest.canReturnTranslation()) {
+            Intent result = new Intent()
+                    .putExtra(Intent.EXTRA_PROCESS_TEXT, translated);
+            setResult(RESULT_OK, result);
+            finish();
+            return;
+        }
+        output.setText(translated);
+    }
+
+    private static ProcessTextRequest readProcessTextRequest(Intent intent) {
+        if (intent == null || !Intent.ACTION_PROCESS_TEXT.equals(intent.getAction())) {
+            return ProcessTextRequest.launcher();
+        }
+
+        CharSequence suppliedText;
+        Boolean readOnly = null;
+        try {
+            suppliedText = intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT);
+            if (intent.hasExtra(Intent.EXTRA_PROCESS_TEXT_READONLY)) {
+                readOnly = intent.getBooleanExtra(Intent.EXTRA_PROCESS_TEXT_READONLY, true);
+            }
+        } catch (RuntimeException malformedExtras) {
+            suppliedText = null;
+        }
+        return ProcessTextRequest.processText(suppliedText, readOnly);
     }
 
     private void toggleDirection() {

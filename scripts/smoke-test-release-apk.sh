@@ -26,11 +26,28 @@ fi
 apk_path="$1"
 expected_version_name="$2"
 expected_version_code="$3"
+if [[ ! "$expected_version_name" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+  fail "VERSION must be a stable semantic version."
+fi
+expected_major="${BASH_REMATCH[1]}"
+expected_minor="${BASH_REMATCH[2]}"
+process_text_expected=false
+if (( expected_major > 0 || expected_minor >= 3 )); then
+  process_text_expected=true
+fi
 package_name="com.tapziq.translator"
 activity_component="$package_name/.MainActivity"
 input_id="$package_name:id/translation_input"
 button_id="$package_name:id/translate_button"
 output_id="$package_name:id/translation_output"
+process_text_action="android.intent.action.PROCESS_TEXT"
+process_text_category="android.intent.category.DEFAULT"
+process_text_type="text/plain"
+process_text_extra="android.intent.extra.PROCESS_TEXT"
+process_text_read_only_extra="android.intent.extra.PROCESS_TEXT_READONLY"
+probe_package_name="com.tapziq.translator.smokeprobe"
+probe_activity_component="$probe_package_name/.ProcessTextProbeActivity"
+probe_result_id="$probe_package_name:id/process_text_result"
 legacy_smoke_profile="${TAPZIQ_TRANSLATOR_LEGACY_SMOKE_PROFILE-1}"
 
 case "$legacy_smoke_profile" in
@@ -65,7 +82,11 @@ temporary_directory="$(
   mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/tapziq-translator-smoke.XXXXXX"
 )"
 ui_dump="$temporary_directory/window.xml"
+probe_installed=false
 cleanup() {
+  if [[ "$probe_installed" == true ]]; then
+    adb uninstall "$probe_package_name" >/dev/null 2>&1 || true
+  fi
   rm -f "$ui_dump"
   rmdir "$temporary_directory" >/dev/null 2>&1 || true
 }
@@ -141,6 +162,17 @@ handle_system_ui_anr() {
   adb shell am start -W -n "$activity_component" >/dev/null
   sleep 2
   return 0
+}
+
+start_process_text() {
+  local read_only="$1"
+  adb shell am start -W \
+    -a "$process_text_action" \
+    -c "$process_text_category" \
+    -t "$process_text_type" \
+    --es "$process_text_extra" Hello \
+    --ez "$process_text_read_only_extra" "$read_only" \
+    -p "$package_name" >/dev/null
 }
 
 display_dimensions="$(
@@ -245,6 +277,113 @@ for attempt in 1 2 3 4 5 6; do
 done
 [[ "$translated_text" == Hola ]] || \
   fail "The production app did not translate Hello to Hola."
+
+if [[ "$process_text_expected" == true ]]; then
+  apk_directory="$(cd -- "$(dirname -- "$apk_path")" && pwd)"
+  repo_root="$(git -C "$apk_directory" rev-parse --show-toplevel 2>/dev/null || true)"
+  [[ -n "$repo_root" ]] || \
+    fail "Could not resolve the source checkout for the Process Text probe."
+  process_text_probe_apk=
+  process_text_probe_apk+="$repo_root/smoke-probe/build/outputs/apk/debug/smoke-probe-debug.apk"
+  [[ -f "$process_text_probe_apk" ]] || \
+    fail "The Process Text caller probe APK was not built."
+
+  resolved_process_text_activity="$(
+    adb shell cmd package resolve-activity --brief \
+      -a "$process_text_action" \
+      -c "$process_text_category" \
+      -t "$process_text_type" \
+      -p "$package_name" \
+      | tr -d '\r' \
+      | tail -n 1
+  )"
+  [[ "$resolved_process_text_activity" == "$activity_component" ]] || \
+    fail "The production app does not resolve its Process Text activity."
+
+  adb shell am force-stop "$package_name"
+  start_process_text true
+  read_only_process_ready=false
+  for attempt in 1 2 3 4 5 6; do
+    dump_ui
+    if handle_system_ui_anr; then
+      start_process_text true
+      continue
+    fi
+    process_input_text="$(node_text resource-id "$input_id" 2>/dev/null || true)"
+    process_button_text="$(node_text resource-id "$button_id" 2>/dev/null || true)"
+    if [[ "$process_input_text" == Hello && "$process_button_text" == Translate ]]; then
+      read_only_process_ready=true
+      break
+    fi
+    sleep 1
+  done
+  [[ "$read_only_process_ready" == true ]] || \
+    fail "The read-only Process Text request was not prefilled safely."
+
+  process_button_coordinates="$(node_center resource-id "$button_id")" || \
+    fail "Could not find the read-only Process Text translate button."
+  read -r process_button_x process_button_y <<< "$process_button_coordinates"
+  adb shell input tap "$process_button_x" "$process_button_y"
+  sleep 1
+
+  read_only_process_result=""
+  for attempt in 1 2 3 4 5 6; do
+    dump_ui
+    read_only_process_result="$(
+      node_text resource-id "$output_id" 2>/dev/null || true
+    )"
+    [[ "$read_only_process_result" == Hola ]] && break
+    sleep 1
+  done
+  [[ "$read_only_process_result" == Hola ]] || \
+    fail "The read-only Process Text request did not translate Hello to Hola."
+
+  adb shell am force-stop "$package_name"
+  adb uninstall "$probe_package_name" >/dev/null 2>&1 || true
+  adb install --no-streaming "$process_text_probe_apk" >/dev/null
+  probe_installed=true
+  adb shell am start -W -n "$probe_activity_component" >/dev/null
+  mutable_process_ready=false
+  for attempt in 1 2 3 4 5 6; do
+    dump_ui
+    if handle_system_ui_anr; then
+      adb shell am force-stop "$probe_package_name"
+      adb shell am start -W -n "$probe_activity_component" >/dev/null
+      continue
+    fi
+    process_input_text="$(node_text resource-id "$input_id" 2>/dev/null || true)"
+    process_button_text="$(node_text resource-id "$button_id" 2>/dev/null || true)"
+    if [[ "$process_input_text" == Hello \
+        && "$process_button_text" == "Translate and return" ]]; then
+      mutable_process_ready=true
+      break
+    fi
+    sleep 1
+  done
+  [[ "$mutable_process_ready" == true ]] || \
+    fail "The mutable Process Text request was not ready to return a result."
+
+  process_button_coordinates="$(node_center resource-id "$button_id")" || \
+    fail "Could not find the mutable Process Text translate button."
+  read -r process_button_x process_button_y <<< "$process_button_coordinates"
+  adb shell input tap "$process_button_x" "$process_button_y"
+
+  mutable_process_result=""
+  for attempt in 1 2 3 4 5 6; do
+    dump_ui
+    mutable_process_result="$(
+      node_text resource-id "$probe_result_id" 2>/dev/null || true
+    )"
+    [[ "$mutable_process_result" == "RESULT_OK: Hola" ]] && break
+    sleep 1
+  done
+  [[ "$mutable_process_result" == "RESULT_OK: Hola" ]] || \
+    fail "The mutable Process Text request did not return RESULT_OK with Hola."
+
+  printf 'Verified Process Text activity: read-only Hello -> %s; mutable result: %s.\n' \
+    "$read_only_process_result" \
+    "$mutable_process_result"
+fi
 
 printf 'Verified installed production app %s %s (%s); translated: Hello -> %s\n' \
   "$package_name" "$expected_version_name" "$expected_version_code" \
